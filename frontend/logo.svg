@@ -1,0 +1,19 @@
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="4" width="56" height="56" rx="12" ry="12" fill="#00BFFF" stroke="#2C3E50" stroke-width="2"/>
+  <rect x="16" y="2" width="4" height="8" rx="2" ry="2" fill="#2C3E50"/>
+  <rect x="24" y="2" width="4" height="8" rx="2" ry="2" fill="#2C3E50"/>
+  <rect x="36" y="2" width="4" height="8" rx="2" ry="2" fill="#2C3E50"/>
+  <rect x="44" y="2" width="4" height="8" rx="2" ry="2" fill="#2C3E50"/>
+  <rect x="12" y="16" width="32" height="36" rx="4" ry="4" fill="#F8F9FA" stroke="#2C3E50" stroke-width="2"/>
+  <line x1="16" y1="24" x2="40" y2="24" stroke="#00BFFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16" y1="30" x2="40" y2="30" stroke="#00BFFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16" y1="36" x2="40" y2="36" stroke="#00BFFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16" y1="42" x2="40" y2="42" stroke="#00BFFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16" y1="48" x2="36" y2="48" stroke="#00BFFF" stroke-width="2" stroke-linecap="round"/>
+  <g transform="rotate(45 48 20)">
+    <rect x="44" y="12" width="8" height="16" rx="1" ry="1" fill="#F8F9FA" stroke="#2C3E50" stroke-width="1.5"/>
+    <polygon points="46,28 50,32 54,28" fill="#2C3E50"/>
+    <rect x="44" y="12" width="8" height="3" fill="#00BFFF"/>
+  </g>
+</svg>
+

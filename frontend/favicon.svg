@@ -1,0 +1,18 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2" y="2" width="28" height="28" rx="6" ry="6" fill="#00BFFF"/>
+  <rect x="8" y="1" width="2" height="4" rx="1" fill="#2C3E50"/>
+  <rect x="12" y="1" width="2" height="4" rx="1" fill="#2C3E50"/>
+  <rect x="18" y="1" width="2" height="4" rx="1" fill="#2C3E50"/>
+  <rect x="22" y="1" width="2" height="4" rx="1" fill="#2C3E50"/>
+  <rect x="6" y="8" width="16" height="18" rx="2" fill="#F8F9FA"/>
+  <line x1="8" y1="12" x2="20" y2="12" stroke="#00BFFF" stroke-width="1"/>
+  <line x1="8" y1="15" x2="20" y2="15" stroke="#00BFFF" stroke-width="1"/>
+  <line x1="8" y1="18" x2="20" y2="18" stroke="#00BFFF" stroke-width="1"/>
+  <line x1="8" y1="21" x2="18" y2="21" stroke="#00BFFF" stroke-width="1"/>
+  <g transform="rotate(45 24 10)">
+    <rect x="22" y="6" width="4" height="8" rx="0.5" fill="#F8F9FA" stroke="#2C3E50" stroke-width="0.5"/>
+    <polygon points="23,14 24,16 25,14" fill="#2C3E50"/>
+    <rect x="22" y="6" width="4" height="1.5" fill="#00BFFF"/>
+  </g>
+</svg>
+

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Frunk 工具箱</title>
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <meta name="theme-color" content="#00BFFF">
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="logo-title">
+        <img src="logo.svg" alt="Frunk Logo" class="logo" onerror="this.style.display='none'">
+        <h2>Frunk 工具箱</h2>
+      </div>
+      <div v-if="user" style="display:flex; gap:10px; align-items:center;">
+        <span>已登陆: {{user.email}}</span>
+        <button v-if="view !== 'toolbox'" @click="goToolbox">返回工具箱</button>
+        <button @click="logout">退出登陆</button>
+      </div>
+    </header>
+
+    <section v-if="!user">
+      <h3>登陆</h3>
+      <input v-model="form.email" placeholder="Email">
+      <input v-model="form.password" placeholder="Password" type="password">
+      <div class="row">
+        <button @click="login">登陆</button>
+        <button @click="register">注册</button>
+      </div>
+      <p style="color:#c00" v-if="err">{{err}}</p>
+    </section>
+
+    <section v-else-if="view === 'toolbox'">
+      <h3 style="margin-top: 0;">工具箱</h3>
+      <p style="color:#666; margin-top:6px;">选择一个工具开始使用。</p>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px;">
+        <div v-for="t in tools" :key="t.id" class="note" style="cursor:pointer;" @click="openTool(t)">
+          <div class="note-header">
+            <div class="note-title-section">
+              <h4 class="note-title-display">{{t.name}}</h4>
+            </div>
+          </div>
+          <div class="note-content-display" style="color:#666;">
+            {{t.description}}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-else-if="view === 'koculator'">
+      <h3 style="margin-top: 0;">Koculator 计算器</h3>
+      <div class="note" style="max-width: 560px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; gap: 12px;">
+          <div>
+            <div style="font-size: 12px; color:#666;">表达式</div>
+            <div style="font-size: 22px; font-weight: 600; word-break: break-all;">{{calc.expr || '0'}}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size: 12px; color:#666;">结果</div>
+            <div style="font-size: 18px; font-weight: 600;" :style="{color: calc.hasError ? '#c00' : '#111'}">
+              {{calc.result || '\u00A0'}}
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px;">
+          <button @click="calcClear">C</button>
+          <button @click="calcBackspace">⌫</button>
+          <button @click="calcAppend('(')">(</button>
+          <button @click="calcAppend(')')">)</button>
+
+          <button @click="calcAppend('7')">7</button>
+          <button @click="calcAppend('8')">8</button>
+          <button @click="calcAppend('9')">9</button>
+          <button @click="calcAppend('/')">÷</button>
+
+          <button @click="calcAppend('4')">4</button>
+          <button @click="calcAppend('5')">5</button>
+          <button @click="calcAppend('6')">6</button>
+          <button @click="calcAppend('*')">×</button>
+
+          <button @click="calcAppend('1')">1</button>
+          <button @click="calcAppend('2')">2</button>
+          <button @click="calcAppend('3')">3</button>
+          <button @click="calcAppend('-')">−</button>
+
+          <button @click="calcAppend('0')" style="grid-column: span 2;">0</button>
+          <button @click="calcAppend('.')">.</button>
+          <button @click="calcAppend('+')">+</button>
+        </div>
+
+        <div class="row" style="margin-top: 12px;">
+          <button @click="calcEquals" style="flex:1;">=</button>
+        </div>
+        <small style="color:#999;">键盘支持：数字、+ - * / ( )、Enter、Backspace、Esc</small>
+      </div>
+    </section>
+
+    <section v-else-if="view === 'notes'">
+      <!-- 直接复用原 notes UI（保持功能一致，后续再拆成独立文件） -->
+      <div class="search-bar">
+        <div class="search-container" style="margin-bottom:8px;">
+          <input v-model="searchQuery" @keyup.enter="search" placeholder="搜索笔记标题或内容..." class="search-input" style="width:50%;">
+          <button @click="search" class="search-btn">🔍 搜索</button>
+          <button @click="clearSearch" class="clear-search" v-if="searchQuery || selectedTagId">清除</button>
+          <button @click="showTagManager = !showTagManager" class="clear-search">
+            {{showTagManager ? '隐藏' : '标签管理'}}
+          </button>
+        </div>
+
+        <div class="filter-tags" v-if="tags.length > 0">
+          <span style="font-size:12px; color:#666; margin-right:8px;">筛选标签:</span>
+          <span v-for="tag in tags" :key="tag.id"
+            class="tag filter-tag"
+            :class="{active: selectedTagId === tag.id}"
+            :style="{backgroundColor: tag.color}"
+            @click="filterByTag(tag.id)">
+            {{tag.name}} ({{tag.note_count}})
+          </span>
+        </div>
+      </div>
+
+      <div v-if="showTagManager" class="tag-manager">
+        <h4>标签管理</h4>
+        <div class="tag-form">
+          <input v-model="newTag.name" placeholder="标签名" class="tag-input">
+          <input v-model="newTag.color" type="color" class="color-input">
+          <button @click="createTag" class="clear-search">添加标签</button>
+        </div>
+        <div v-if="tags.length > 0" class="existing-tags">
+          <h5>现有标签</h5>
+          <div v-for="tag in tags" :key="tag.id" class="tag-item">
+            <div v-if="!tag.isEditing" class="tag-display">
+              <span class="tag tag-in-manager" :style="{backgroundColor: tag.color}">
+                {{tag.name}} ({{tag.note_count}})
+              </span>
+              <div class="tag-actions">
+                <button @click="startEditTag(tag)" class="edit-tag-btn" title="编辑标签">✏️</button>
+                <button @click="deleteTag(tag.id)" class="delete-tag-btn" title="删除标签">🗑️</button>
+              </div>
+            </div>
+
+            <div v-else class="tag-edit">
+              <input v-model="tag.editName" class="tag-edit-input" placeholder="标签名"
+                @keyup.enter="saveTagEdit(tag)" @keyup.escape="cancelTagEdit(tag)">
+              <input v-model="tag.editColor" type="color" class="tag-edit-color">
+              <div class="tag-edit-actions">
+                <button @click="saveTagEdit(tag)" class="save-tag-btn" title="保存">✅</button>
+                <button @click="cancelTagEdit(tag)" class="cancel-tag-btn" title="取消">❌</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="new-memo-section">
+        <div v-if="!showNewMemoForm" class="new-memo-collapsed">
+          <button @click="expandNewMemoForm" class="add-memo-btn" title="创建新笔记">➕ New Memo</button>
+        </div>
+
+        <div v-else class="new-memo-expanded">
+          <div class="new-memo-header">
+            <h3>New Memo</h3>
+            <button @click="cancelNewMemo" class="cancel-btn" title="取消">✖️</button>
+          </div>
+
+          <input v-model="draft.title" placeholder="标题">
+          <div class="rich-editor-container">
+            <div id="draft-editor" class="rich-editor"></div>
+          </div>
+
+          <div v-if="tags.length > 0" style="margin:8px 0;">
+            <small style="color:#666;">选择标签:</small><br>
+            <span v-for="tag in tags" :key="tag.id"
+              class="tag"
+              :class="{selected: draft.tag_ids.includes(tag.id)}"
+              :style="{backgroundColor: tag.color, opacity: draft.tag_ids.includes(tag.id) ? 1 : 0.5}"
+              @click="toggleTagInDraft(tag.id)">
+              {{tag.name}}
+            </span>
+          </div>
+
+          <div class="new-memo-actions">
+            <button @click="createNote" class="save-memo-btn">💾 保存</button>
+            <button @click="cancelNewMemo" class="cancel-memo-btn">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 16px;">
+        <div>
+          <h3>我的笔记</h3>
+          <small v-if="searchQuery || selectedTagId" style="color:#007bff;">
+            <span v-if="searchQuery">搜索: "{{searchQuery}}"</span>
+            <span v-if="searchQuery && selectedTagId"> + </span>
+            <span v-if="selectedTagId">标签: "{{tags.find(t => t.id === selectedTagId)?.name}}"</span>
+          </small>
+        </div>
+        <div style="text-align:right;">
+          <small style="color:#666;">
+            {{searchQuery || selectedTagId ? '找到' : '共'}} {{pagination.total || notes.length}} 条笔记
+            <span v-if="pagination.pages > 1">(第 {{pagination.page}} / {{pagination.pages}} 页)</span>
+          </small><br>
+          <small style="color:#999; font-size:10px;">当前时间: {{getCurrentTime()}}</small>
+        </div>
+      </div>
+
+      <div v-if="notes.length === 0" style="text-align:center; color:#999; padding:40px;">
+        <p>还没有笔记，创建第一条笔记吧！</p>
+      </div>
+
+      <div class="note" v-for="n in notes" :key="n.id" :class="{updating: n.updating, editing: n.isEditing, pinned: n.is_pinned}">
+        <div class="note-header">
+          <div class="note-title-section">
+            <span v-if="n.is_pinned" class="pin-indicator" title="已顶置">📌</span>
+            <input v-if="n.isEditing" class="note-title" v-model="n.title" @input="scheduleUpdate(n)" placeholder="笔记标题">
+            <h4 v-else class="note-title-display" @click="startEdit(n)">{{n.title || '无标题'}}</h4>
+          </div>
+
+          <div class="note-controls">
+            <span class="update-status" v-if="n.updating">保存中...</span>
+            <span class="update-status" v-else-if="n.justSaved">已保存</span>
+
+            <button @click="togglePin(n)" class="pin-btn" :class="{active: n.is_pinned}" :title="n.is_pinned ? '取消顶置' : '顶置笔记'">📌</button>
+            <button v-if="!n.isEditing" @click="startEdit(n)" class="edit-btn" title="编辑笔记">✏️ 编辑</button>
+            <button v-else @click="finishEdit(n)" class="save-btn" title="完成编辑">✅ 完成</button>
+          </div>
+        </div>
+
+        <div v-if="n.isEditing" class="rich-editor-container">
+          <div :id="'note-editor-' + n.id" class="rich-editor compact"></div>
+        </div>
+        <div v-else class="note-content-display" @click="startEdit(n)" v-html="n.content"></div>
+
+        <div class="note-tags">
+          <div v-if="!n.isEditing && n.tags && n.tags.length > 0" class="selected-tags">
+            <small style="color:#666;">标签:</small>
+            <span v-for="tag in n.tags" :key="tag.id" class="tag tag-readonly" :style="{backgroundColor: tag.color}">
+              {{tag.name}}
+            </span>
+          </div>
+
+          <div v-if="n.isEditing && tags.length > 0" class="editable-tags">
+            <small style="color:#666;">选择标签:</small>
+            <span v-for="tag in tags" :key="tag.id"
+              class="tag tag-selectable"
+              :class="{selected: n.tags.some(t => t.id === tag.id)}"
+              :style="{backgroundColor: tag.color, opacity: n.tags.some(t => t.id === tag.id) ? 1 : 0.4}"
+              @click="toggleTagInNote(n, tag.id)">
+              {{tag.name}}
+            </span>
+          </div>
+        </div>
+
+        <div class="note-actions">
+          <div class="time-info">
+            <span>创建: {{ formatTime(n.created_at) }}</span>
+            <span v-if="n.created_at !== n.updated_at">更新: {{ formatTime(n.updated_at) }}</span>
+          </div>
+          <button class="delete-btn" @click="deleteNote(n.id)" title="删除笔记">删除</button>
+        </div>
+      </div>
+
+      <div v-if="pagination.pages > 1" class="pagination">
+        <button @click="goPrev" :disabled="pagination.page <= 1">← 上一页</button>
+        <button v-for="p in getPageNumbers()" :key="p" @click="goPage(p)" :class="{active: p === pagination.page}" v-if="p !== '...'">
+          {{p}}
+        </button>
+        <span v-for="p in getPageNumbers()" :key="p" v-if="p === '...'" class="pagination-info">...</span>
+        <button @click="goNext" :disabled="pagination.page >= pagination.pages">下一页 →</button>
+      </div>
+    </section>
+
+    <section v-else>
+      <p style="color:#c00;">未知工具视图：{{view}}</p>
+      <button @click="goToolbox">返回工具箱</button>
+    </section>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
+
