@@ -18,7 +18,7 @@ def register():
     if existing_user:
         return jsonify(error="Email already exists"), 409
 
-    u = User(email=email)
+    u = User(email=email, role="user")  # type: ignore[call-arg]
     u.set_password(password)
     db.session.add(u)
     db.session.commit()
@@ -33,14 +33,18 @@ def login():
     u = User.query.filter_by(email=email).first()
     if not u or not u.check_password(password):
         return jsonify(error="Invalid email or password"), 401
+    if not u.active:
+        return jsonify(error="Account disabled"), 403
     login_user(u, remember=remember)
-    return jsonify(message="ok", user={"id": u.id, "email": u.email})
+    return jsonify(message="ok", user={"id": u.id, "email": u.email, "role": u.role})
 
 
 @bp.get("/me")
 @login_required
 def me():
-    return jsonify(user={"id": current_user.id, "email": current_user.email})
+    return jsonify(
+        user={"id": current_user.id, "email": current_user.email, "role": current_user.role}
+    )
 
 
 @bp.post("/logout")
@@ -48,4 +52,3 @@ def me():
 def logout():
     logout_user()
     return jsonify(message="ok")
-

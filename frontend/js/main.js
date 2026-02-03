@@ -14,6 +14,21 @@ const app = createApp({
       draft: { title: "", content: "", tag_ids: [] },
       notes: [],
       err: "",
+      showPassword: false,
+      showResetModal: false,
+      resetEmail: "",
+      resetStatus: "",
+      announcements: [],
+      adminAnnouncements: [],
+      adminUsers: [],
+      resetRequests: [],
+      profileForm: { display_name: "", phone: "", bio: "", avatar_url: "" },
+      passwordForm: { current: "", next: "" },
+      emailForm: { email: "", current: "" },
+      passwordStatus: "",
+      showAnnouncementForm: false,
+      announcementForm: { title: "", content: "", is_active: true },
+      announcementEditingId: null,
       updateTimers: {},
       tags: [],
       searchQuery: "",
@@ -36,7 +51,11 @@ const app = createApp({
       if (res && res.user) {
         this.user = res.user;
         await this.refreshToolbox();
-        this.goToolbox();
+        if (this.user.role === "admin") {
+          await this.goAdmin();
+        } else {
+          this.goToolbox();
+        }
       }
     } catch (error) {
       console.log("用户未登录");
@@ -55,6 +74,23 @@ const app = createApp({
     },
     goToolbox() {
       this.view = "toolbox";
+      this.err = "";
+      this.loadAnnouncements();
+    },
+    async goAdmin() {
+      this.view = "admin";
+      this.err = "";
+      await Promise.all([
+        this.loadAdminAnnouncements(),
+        this.loadAdminUsers(),
+        this.loadResetRequests(),
+      ]);
+    },
+    async goProfile() {
+      this.view = "profile";
+      this.err = "";
+      this.passwordStatus = "";
+      await this.loadProfile();
     },
     async openTool(tool) {
       const view = tool?.entry?.view;
@@ -218,7 +254,11 @@ const app = createApp({
       if (res) {
         this.user = res.user;
         await this.refreshToolbox();
-        this.goToolbox();
+        if (this.user.role === "admin") {
+          await this.goAdmin();
+        } else {
+          this.goToolbox();
+        }
       }
     },
     async logout() {
@@ -228,10 +268,207 @@ const app = createApp({
       this.tools = [];
       this.notes = [];
       this.tags = [];
+      this.announcements = [];
+      this.adminAnnouncements = [];
+      this.adminUsers = [];
+      this.resetRequests = [];
+      this.profileForm = { display_name: "", phone: "", bio: "", avatar_url: "" };
+      this.passwordForm = { current: "", next: "" };
+      this.emailForm = { email: "", current: "" };
+      this.passwordStatus = "";
+      this.showPassword = false;
+      this.showResetModal = false;
+      this.resetEmail = "";
+      this.resetStatus = "";
+      this.showAnnouncementForm = false;
+      this.announcementForm = { title: "", content: "", is_active: true };
+      this.announcementEditingId = null;
       this.searchQuery = "";
       this.selectedTagId = null;
       this.pagination = { page: 1, pages: 1, total: 0, per_page: 10 };
       this.calcClear();
+    },
+
+    async loadAnnouncements() {
+      const res = await this._get("/announcements/").catch(() => ({ announcements: [] }));
+      this.announcements = res.announcements || [];
+    },
+    async loadAdminAnnouncements() {
+      const res = await this._get("/admin/announcements").catch(() => ({ announcements: [] }));
+      this.adminAnnouncements = res.announcements || [];
+    },
+    async loadAdminUsers() {
+      const res = await this._get("/admin/users").catch(() => ({ users: [] }));
+      this.adminUsers = (res.users || []).map((user) => ({ ...user, newPassword: "" }));
+    },
+    async loadResetRequests() {
+      const res = await this._get("/admin/password-resets").catch(() => ({ resets: [] }));
+      this.resetRequests = res.resets || [];
+    },
+    async loadProfile() {
+      const res = await this._get("/profile/").catch(() => ({ profile: {} }));
+      const profile = res.profile || {};
+      this.profileForm = {
+        display_name: profile.display_name || "",
+        phone: profile.phone || "",
+        bio: profile.bio || "",
+        avatar_url: profile.avatar_url || "",
+      };
+      this.emailForm.email = profile.email || this.user?.email || "";
+    },
+    async saveProfile() {
+      this.err = "";
+      await this._put("/profile/", this.profileForm).catch((e) => (this.err = e.message));
+      if (!this.err) {
+        this.passwordStatus = "";
+      }
+    },
+    async uploadAvatar(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        this.err = "请选择图片文件";
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        this.err = "头像请小于 2MB";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        this.profileForm.avatar_url = String(reader.result || "");
+        await this.saveProfile();
+      };
+      reader.readAsDataURL(file);
+    },
+    async changeEmail() {
+      this.err = "";
+      this.passwordStatus = "";
+      if (!this.emailForm.email || !this.emailForm.current) {
+        this.err = "请输入新邮箱和当前密码";
+        return;
+      }
+      const res = await this._put("/profile/email", {
+        email: this.emailForm.email,
+        current_password: this.emailForm.current,
+      }).catch((e) => (this.err = e.message));
+      if (!this.err && res?.email) {
+        this.user.email = res.email;
+        this.passwordStatus = "邮箱已更新";
+        this.emailForm.current = "";
+      }
+    },
+    async changePassword() {
+      this.err = "";
+      this.passwordStatus = "";
+      if (!this.passwordForm.current || !this.passwordForm.next) {
+        this.err = "请输入当前密码与新密码";
+        return;
+      }
+      await this._put("/profile/password", {
+        current_password: this.passwordForm.current,
+        new_password: this.passwordForm.next,
+      }).catch((e) => (this.err = e.message));
+      if (!this.err) {
+        this.passwordForm = { current: "", next: "" };
+        this.passwordStatus = "密码已更新";
+      }
+    },
+    togglePassword() {
+      this.showPassword = !this.showPassword;
+    },
+    openResetModal() {
+      this.resetStatus = "";
+      this.resetEmail = "";
+      this.showResetModal = true;
+    },
+    closeResetModal() {
+      this.showResetModal = false;
+      this.resetStatus = "";
+    },
+    async submitResetRequest() {
+      this.err = "";
+      this.resetStatus = "";
+      if (!this.resetEmail.trim()) {
+        this.err = "请输入邮箱";
+        return;
+      }
+      await this._post("/password-resets/", { email: this.resetEmail }).catch(
+        (e) => (this.err = e.message)
+      );
+      if (!this.err) {
+        this.resetStatus = "已提交申请";
+        this.resetEmail = "";
+      }
+    },
+    toggleAnnouncementForm() {
+      this.showAnnouncementForm = !this.showAnnouncementForm;
+    },
+    resetAnnouncementForm() {
+      this.announcementForm = { title: "", content: "", is_active: true };
+      this.announcementEditingId = null;
+    },
+    editAnnouncement(announcement) {
+      this.showAnnouncementForm = true;
+      this.announcementEditingId = announcement.id;
+      this.announcementForm = {
+        title: announcement.title,
+        content: announcement.content,
+        is_active: announcement.is_active,
+      };
+    },
+    async saveAnnouncement() {
+      this.err = "";
+      const payload = { ...this.announcementForm };
+      if (!payload.title.trim()) {
+        this.err = "公告标题不能为空";
+        return;
+      }
+      if (this.announcementEditingId) {
+        await this._put(`/admin/announcements/${this.announcementEditingId}`, payload).catch(
+          (e) => (this.err = e.message)
+        );
+      } else {
+        await this._post("/admin/announcements", payload).catch((e) => (this.err = e.message));
+      }
+      this.resetAnnouncementForm();
+      await this.loadAdminAnnouncements();
+      this.loadAnnouncements();
+    },
+    async toggleAnnouncementStatus(announcement) {
+      this.err = "";
+      await this._put(`/admin/announcements/${announcement.id}`, {
+        is_active: !announcement.is_active,
+      }).catch((e) => (this.err = e.message));
+      await this.loadAdminAnnouncements();
+      this.loadAnnouncements();
+    },
+    async deleteAnnouncement(announcement) {
+      this.err = "";
+      if (!confirm("确定要删除该公告吗？")) return;
+      await this._del(`/admin/announcements/${announcement.id}`).catch(
+        (e) => (this.err = e.message)
+      );
+      await this.loadAdminAnnouncements();
+      this.loadAnnouncements();
+    },
+    async resetUserPassword(user) {
+      this.err = "";
+      if (!user.newPassword) {
+        this.err = "请输入新密码";
+        return;
+      }
+      await this._post(`/admin/users/${user.id}/reset-password`, {
+        password: user.newPassword,
+      }).catch((e) => (this.err = e.message));
+      user.newPassword = "";
+    },
+    async toggleUserActive(user) {
+      this.err = "";
+      await this._post(`/admin/users/${user.id}/toggle-active`, {}).catch(
+        (e) => (this.err = e.message)
+      );
+      await this.loadAdminUsers();
     },
 
     async loadNotes() {
@@ -572,4 +809,3 @@ const app = createApp({
 });
 
 app.mount("#app");
-

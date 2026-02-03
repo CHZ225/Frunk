@@ -6,7 +6,7 @@
   <title>Frunk 工具箱</title>
 
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <meta name="theme-color" content="#00BFFF">
+  <meta name="theme-color" content="#1d4ed8">
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tinymce@6/tinymce.min.js"></script>
@@ -20,8 +20,10 @@
         <img src="logo.svg" alt="Frunk Logo" class="logo" onerror="this.style.display='none'">
         <h2>Frunk 工具箱</h2>
       </div>
-      <div v-if="user" style="display:flex; gap:10px; align-items:center;">
+      <div v-if="user" style="display:flex; gap:10px; align-items:center; flex-wrap: wrap; justify-content: flex-end;">
         <span>已登陆: {{user.email}}</span>
+        <button v-if="view !== 'profile'" @click="goProfile">个人主页</button>
+        <button v-if="user.role === 'admin' && view !== 'admin'" @click="goAdmin">管理员</button>
         <button v-if="view !== 'toolbox'" @click="goToolbox">返回工具箱</button>
         <button @click="logout">退出登陆</button>
       </div>
@@ -30,17 +32,53 @@
     <section v-if="!user">
       <h3>登陆</h3>
       <input v-model="form.email" placeholder="Email">
-      <input v-model="form.password" placeholder="Password" type="password">
+      <div class="password-field">
+        <input v-model="form.password" placeholder="Password" :type="showPassword ? 'text' : 'password'">
+        <button class="toggle-password" type="button" @click="togglePassword">
+          {{showPassword ? '隐藏' : '显示'}}
+        </button>
+      </div>
       <div class="row">
         <button @click="login">登陆</button>
         <button @click="register">注册</button>
       </div>
+      <button class="link-btn" @click="openResetModal">忘记密码？</button>
       <p style="color:#c00" v-if="err">{{err}}</p>
     </section>
 
-    <section v-else-if="view === 'toolbox'">
+    <section v-if="showResetModal" class="modal-mask">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h4>找回密码</h4>
+          <button class="cancel-btn" @click="closeResetModal">✖️</button>
+        </div>
+        <p style="color:#666; margin-top:6px;">输入邮箱提交申请，管理员会处理。</p>
+        <input v-model="resetEmail" placeholder="邮箱">
+        <div class="row">
+          <button @click="submitResetRequest" class="save-btn">提交</button>
+          <button @click="closeResetModal" class="cancel-memo-btn">取消</button>
+        </div>
+        <small v-if="resetStatus" style="color:#1f6945;">{{resetStatus}}</small>
+      </div>
+    </section>
+
+    <section v-else-if="user && view === 'toolbox'">
       <h3 style="margin-top: 0;">工具箱</h3>
       <p style="color:#666; margin-top:6px;">选择一个工具开始使用。</p>
+
+      <div v-if="announcements.length" class="announcement-board">
+        <div class="announcement-header">
+          <h4>公告</h4>
+          <small>最新通知</small>
+        </div>
+        <div class="announcement-list">
+          <div class="announcement-card" v-for="item in announcements" :key="item.id">
+            <div class="announcement-title">{{item.title}}</div>
+            <div class="announcement-content" v-html="item.content"></div>
+            <div class="announcement-time">{{formatTime(item.created_at)}}</div>
+          </div>
+        </div>
+      </div>
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 14px;">
         <div v-for="t in tools" :key="t.id" class="note" style="cursor:pointer;" @click="openTool(t)">
@@ -56,7 +94,191 @@
       </div>
     </section>
 
-    <section v-else-if="view === 'koculator'">
+    <section v-else-if="user && view === 'admin'">
+      <div class="admin-header">
+        <div>
+          <h3 style="margin-top: 0;">管理员后台</h3>
+          <p style="color:#666; margin-top:6px;">公告管理与用户管理。</p>
+        </div>
+        <button @click="goToolbox">返回工具箱</button>
+      </div>
+
+      <p v-if="err" style="color:#c00;">{{err}}</p>
+
+      <div class="admin-grid">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>公告管理</h4>
+            <button @click="toggleAnnouncementForm" class="clear-search">
+              {{showAnnouncementForm ? '收起' : '新建公告'}}
+            </button>
+          </div>
+
+          <div v-if="showAnnouncementForm" class="admin-form">
+            <input v-model="announcementForm.title" placeholder="公告标题">
+            <textarea v-model="announcementForm.content" placeholder="公告内容" rows="4"></textarea>
+            <div class="admin-form-row">
+              <label class="admin-switch">
+                <input type="checkbox" v-model="announcementForm.is_active">
+                <span>立即发布</span>
+              </label>
+              <button @click="saveAnnouncement" class="save-btn">保存</button>
+              <button @click="resetAnnouncementForm" class="cancel-memo-btn">清空</button>
+            </div>
+          </div>
+
+          <div v-if="adminAnnouncements.length" class="admin-list">
+            <div class="admin-item" v-for="a in adminAnnouncements" :key="a.id">
+              <div class="admin-item-main">
+                <div>
+                  <div class="announcement-title">{{a.title}}</div>
+                  <div class="announcement-content" v-html="a.content"></div>
+                  <small>更新: {{formatTime(a.updated_at)}}</small>
+                </div>
+                <div class="admin-badges">
+                  <span class="status-badge" :class="a.is_active ? 'active' : 'inactive'">
+                    {{a.is_active ? '已发布' : '未发布'}}
+                  </span>
+                </div>
+              </div>
+              <div class="admin-item-actions">
+                <button @click="editAnnouncement(a)" class="edit-btn">编辑</button>
+                <button @click="toggleAnnouncementStatus(a)" class="clear-search">
+                  {{a.is_active ? '下线' : '上线'}}
+                </button>
+                <button @click="deleteAnnouncement(a)" class="delete-btn">删除</button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">暂无公告</div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>用户管理</h4>
+            <button @click="loadAdminUsers" class="clear-search">刷新</button>
+          </div>
+
+          <div v-if="adminUsers.length" class="admin-list">
+            <div class="admin-item" v-for="u in adminUsers" :key="u.id">
+              <div class="admin-item-main">
+                <div>
+                  <div class="user-email">{{u.email}}</div>
+                  <small>创建: {{formatTime(u.created_at)}}</small>
+                </div>
+                <div class="admin-badges">
+                  <span class="role-badge">{{u.role}}</span>
+                  <span class="status-badge" :class="u.is_active ? 'active' : 'inactive'">
+                    {{u.is_active ? '启用' : '禁用'}}
+                  </span>
+                </div>
+              </div>
+              <div class="admin-item-actions">
+                <input v-model="u.newPassword" type="password" placeholder="重置密码" class="admin-input">
+                <button @click="resetUserPassword(u)" class="save-btn">重置</button>
+                <button @click="toggleUserActive(u)" class="delete-btn">
+                  {{u.is_active ? '禁用' : '启用'}}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">暂无用户数据</div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>密码找回申请</h4>
+            <button @click="loadResetRequests" class="clear-search">刷新</button>
+          </div>
+          <div v-if="resetRequests.length" class="admin-list">
+            <div class="admin-item" v-for="r in resetRequests" :key="r.id">
+              <div class="admin-item-main">
+                <div>
+                  <div class="user-email">{{r.email}}</div>
+                  <small>提交: {{formatTime(r.created_at)}}</small>
+                </div>
+                <div class="admin-badges">
+                  <span class="status-badge" :class="r.status === 'pending' ? 'active' : 'inactive'">
+                    {{r.status}}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">暂无找回申请</div>
+        </div>
+      </div>
+    </section>
+
+    <section v-else-if="user && view === 'profile'">
+      <div class="admin-header">
+        <div>
+          <h3 style="margin-top: 0;">个人主页</h3>
+          <p style="color:#666; margin-top:6px;">维护个人信息与密码设置。</p>
+        </div>
+        <button @click="goToolbox">返回工具箱</button>
+      </div>
+
+      <p v-if="err" style="color:#c00;">{{err}}</p>
+      <div class="admin-grid">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>头像</h4>
+          </div>
+          <div class="avatar-section">
+            <div class="avatar-preview">
+              <img v-if="profileForm.avatar_url" :src="profileForm.avatar_url" alt="Avatar">
+              <div v-else class="avatar-placeholder">上传头像</div>
+            </div>
+            <input type="file" accept="image/*" @change="uploadAvatar">
+            <small style="color:#666;">支持 JPG/PNG，最大 2MB。</small>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>基本信息</h4>
+          </div>
+          <div class="admin-form">
+            <input v-model="profileForm.display_name" placeholder="昵称">
+            <input v-model="profileForm.phone" placeholder="手机号">
+            <textarea v-model="profileForm.bio" rows="4" placeholder="个人简介"></textarea>
+            <div class="admin-form-row">
+              <button @click="saveProfile" class="save-btn">保存信息</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>修改邮箱</h4>
+          </div>
+          <div class="admin-form">
+            <input v-model="emailForm.email" placeholder="新邮箱">
+            <input v-model="emailForm.current" type="password" placeholder="当前密码">
+            <div class="admin-form-row">
+              <button @click="changeEmail" class="save-btn">更新邮箱</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h4>修改密码</h4>
+          </div>
+          <div class="admin-form">
+            <input v-model="passwordForm.current" type="password" placeholder="当前密码">
+            <input v-model="passwordForm.next" type="password" placeholder="新密码">
+            <div class="admin-form-row">
+              <button @click="changePassword" class="save-btn">更新密码</button>
+            </div>
+            <small v-if="passwordStatus" style="color:#1f6945;">{{passwordStatus}}</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-else-if="user && view === 'koculator'">
       <h3 style="margin-top: 0;">Koculator 计算器</h3>
       <div class="note" style="max-width: 560px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-end; gap: 12px;">
@@ -105,7 +327,7 @@
       </div>
     </section>
 
-    <section v-else-if="view === 'notes'">
+    <section v-else-if="user && view === 'notes'">
       <!-- 直接复用原 notes UI（保持功能一致，后续再拆成独立文件） -->
       <div class="search-bar">
         <div class="search-container" style="margin-bottom:8px;">
@@ -280,7 +502,7 @@
       </div>
     </section>
 
-    <section v-else>
+    <section v-else-if="user">
       <p style="color:#c00;">未知工具视图：{{view}}</p>
       <button @click="goToolbox">返回工具箱</button>
     </section>
@@ -290,4 +512,3 @@
   <script src="js/main.js"></script>
 </body>
 </html>
-
